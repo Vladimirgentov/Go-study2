@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -29,19 +30,21 @@ func main() {
 	}
 
 	filename := os.Args[1]
+	outName := filepath.Base(filename)
+
 	b, err := os.ReadFile(filename)
 	if err != nil {
-		fmt.Println(ValidationError{File: filename, Line: 0, Msg: "cannot read file content"})
+		fmt.Println(ValidationError{File: outName, Line: 0, Msg: "cannot read file content"})
 		os.Exit(1)
 	}
 
 	var root yaml.Node
 	if err := yaml.Unmarshal(b, &root); err != nil {
-		fmt.Println(ValidationError{File: filename, Line: 0, Msg: "cannot unmarshal file content"})
+		fmt.Println(ValidationError{File: outName, Line: 0, Msg: "cannot unmarshal file content"})
 		os.Exit(1)
 	}
 
-	errs := validatePodYAML(filename, &root)
+	errs := validatePodYAML(outName, &root)
 	if len(errs) > 0 {
 		for _, e := range errs {
 			fmt.Println(e.String())
@@ -112,12 +115,12 @@ func validateObjectMeta(file string, meta *yaml.Node) []ValidationError {
 
 	nameNode, ok := mapGet(meta, "name")
 	if !ok {
-		errs = append(errs, req(file, "metadata.name"))
+		errs = append(errs, ValidationError{File: file, Line: 0, Msg: "name is required"})
+	} else if nameNode.Kind != yaml.ScalarNode {
+		errs = append(errs, typeErr(file, nameNode.Line, "name", "string"))
 	} else {
-		if nameNode.Kind != yaml.ScalarNode {
-			errs = append(errs, typeErr(file, nameNode.Line, "metadata.name", "string"))
-		} else if strings.TrimSpace(nameNode.Value) == "" {
-			errs = append(errs, invalidFormat(file, nameNode.Line, "metadata.name", nameNode.Value))
+		if strings.TrimSpace(nameNode.Value) == "" {
+			errs = append(errs, ValidationError{File: file, Line: nameNode.Line, Msg: "name is required"})
 		}
 	}
 
@@ -183,24 +186,6 @@ func validatePodSpec(file string, spec *yaml.Node) []ValidationError {
 	return errs
 }
 
-func validatePodOS(file string, osNode *yaml.Node) []ValidationError {
-	var errs []ValidationError
-	nameNode, ok := mapGet(osNode, "name")
-	if !ok {
-		errs = append(errs, req(file, "spec.os.name"))
-		return errs
-	}
-	if nameNode.Kind != yaml.ScalarNode {
-		errs = append(errs, typeErr(file, nameNode.Line, "spec.os.name", "string"))
-		return errs
-	}
-	v := strings.TrimSpace(nameNode.Value)
-	if v != "linux" && v != "windows" {
-		errs = append(errs, unsupported(file, nameNode.Line, "spec.os.name", nameNode.Value))
-	}
-	return errs
-}
-
 var (
 	snakeCaseRe = regexp.MustCompile(`^[a-z]+(_[a-z0-9]+)*$`)
 	memRe       = regexp.MustCompile(`^[0-9]+(Gi|Mi|Ki)$`)
@@ -224,6 +209,12 @@ func validateContainer(file string, c *yaml.Node, seen map[string]struct{}) []Va
 			})
 		} else if !snakeCaseRe.MatchString(n) {
 			errs = append(errs, invalidFormat(file, nameNode.Line, "name", nameNode.Value))
+		} else {
+			if _, exists := seen[n]; exists {
+				errs = append(errs, invalidFormat(file, nameNode.Line, "name", nameNode.Value))
+			} else {
+				seen[n] = struct{}{}
+			}
 		}
 	}
 
@@ -394,6 +385,7 @@ func validateResources(file string, r *yaml.Node) []ValidationError {
 }
 
 func validateResourceMap(file string, n *yaml.Node, prefix string) []ValidationError {
+	_ = prefix
 	var errs []ValidationError
 
 	if cpuNode, ok := mapGet(n, "cpu"); ok {
