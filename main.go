@@ -211,21 +211,19 @@ func validateContainer(file string, c *yaml.Node, seen map[string]struct{}) []Va
 
 	nameNode, ok := mapGet(c, "name")
 	if !ok {
-		errs = append(errs, req(file, "containers.name"))
+		errs = append(errs, ValidationError{File: file, Line: 0, Msg: "name is required"})
+	} else if nameNode.Kind != yaml.ScalarNode {
+		errs = append(errs, typeErr(file, nameNode.Line, "name", "string"))
 	} else {
-		if nameNode.Kind != yaml.ScalarNode {
-			errs = append(errs, typeErr(file, nameNode.Line, "containers.name", "string"))
-		} else {
-			n := strings.TrimSpace(nameNode.Value)
-			if !snakeCaseRe.MatchString(n) {
-				errs = append(errs, invalidFormat(file, nameNode.Line, "containers.name", nameNode.Value))
-			} else {
-				if _, exists := seen[n]; exists {
-					errs = append(errs, invalidFormat(file, nameNode.Line, "containers.name", nameNode.Value))
-				} else {
-					seen[n] = struct{}{}
-				}
-			}
+		n := strings.TrimSpace(nameNode.Value)
+		if n == "" {
+			errs = append(errs, ValidationError{
+				File: file,
+				Line: nameNode.Line,
+				Msg:  "name is required",
+			})
+		} else if !snakeCaseRe.MatchString(n) {
+			errs = append(errs, invalidFormat(file, nameNode.Line, "name", nameNode.Value))
 		}
 	}
 
@@ -400,21 +398,21 @@ func validateResourceMap(file string, n *yaml.Node, prefix string) []ValidationE
 
 	if cpuNode, ok := mapGet(n, "cpu"); ok {
 		if cpuNode.Kind != yaml.ScalarNode {
-			errs = append(errs, typeErr(file, cpuNode.Line, prefix+".cpu", "int"))
+			errs = append(errs, typeErr(file, cpuNode.Line, "cpu", "int"))
 		} else {
 			if _, err := strconv.Atoi(strings.TrimSpace(cpuNode.Value)); err != nil {
-				errs = append(errs, typeErr(file, cpuNode.Line, prefix+".cpu", "int"))
+				errs = append(errs, typeErr(file, cpuNode.Line, "cpu", "int"))
 			}
 		}
 	}
 
 	if memNode, ok := mapGet(n, "memory"); ok {
 		if memNode.Kind != yaml.ScalarNode {
-			errs = append(errs, typeErr(file, memNode.Line, prefix+".memory", "string"))
+			errs = append(errs, typeErr(file, memNode.Line, "memory", "string"))
 		} else {
 			v := strings.TrimSpace(memNode.Value)
 			if !memRe.MatchString(v) {
-				errs = append(errs, invalidFormat(file, memNode.Line, prefix+".memory", memNode.Value))
+				errs = append(errs, invalidFormat(file, memNode.Line, "memory", memNode.Value))
 			}
 		}
 	}
