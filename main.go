@@ -288,10 +288,13 @@ func validateContainerPort(file string, p *yaml.Node) []ValidationError {
 		errs = append(errs, typeErr(file, cpNode.Line, "containerPort", "int"))
 		return errs
 	}
+	if cpNode.Tag != "!!int" {
+        errs = append(errs, typeErr(file, cpNode.Line, "containerPort", "int"))
+        return errs
+    }
 	cp, err := strconv.Atoi(strings.TrimSpace(cpNode.Value))
-	if err != nil {
-		errs = append(errs, typeErr(file, cpNode.Line, "containerPort", "int"))
-		return errs
+        errs = append(errs, typeErr(file, cpNode.Line, "containerPort", "int"))
+        return errs
 	}
 	if cp <= 0 || cp >= 65536 {
 		errs = append(errs, outOfRange(file, cpNode.Line, "containerPort"))
@@ -345,17 +348,17 @@ func validateHTTPGetAction(file string, h *yaml.Node) []ValidationError {
 
 	portNode, ok := mapGet(h, "port")
 	if !ok {
-		errs = append(errs, req(file, "httpGet.port"))
+		errs = append(errs, req(file, "port"))
+	} else if portNode.Kind != yaml.ScalarNode {
+		errs = append(errs, typeErr(file, portNode.Line, "port", "int"))
+	} else if portNode.Tag != "!!int" {
+		errs = append(errs, typeErr(file, portNode.Line, "port", "int"))
 	} else {
-		if portNode.Kind != yaml.ScalarNode {
-			errs = append(errs, typeErr(file, portNode.Line, "httpGet.port", "int"))
-		} else {
-			p, err := strconv.Atoi(strings.TrimSpace(portNode.Value))
-			if err != nil {
-				errs = append(errs, typeErr(file, portNode.Line, "httpGet.port", "int"))
-			} else if p <= 0 || p >= 65536 {
-				errs = append(errs, outOfRange(file, portNode.Line, "httpGet.port"))
-			}
+		p, err := strconv.Atoi(strings.TrimSpace(portNode.Value))
+		if err != nil {
+			errs = append(errs, typeErr(file, portNode.Line, "port", "int"))
+		} else if p <= 0 || p >= 65536 {
+			errs = append(errs, outOfRange(file, portNode.Line, "port"))
 		}
 	}
 
@@ -391,10 +394,9 @@ func validateResourceMap(file string, n *yaml.Node, prefix string) []ValidationE
 	if cpuNode, ok := mapGet(n, "cpu"); ok {
 		if cpuNode.Kind != yaml.ScalarNode {
 			errs = append(errs, typeErr(file, cpuNode.Line, "cpu", "int"))
-		} else {
-			if _, err := strconv.Atoi(strings.TrimSpace(cpuNode.Value)); err != nil {
-				errs = append(errs, typeErr(file, cpuNode.Line, "cpu", "int"))
-			}
+		} else if cpuNode.Tag != "!!int" {
+
+			errs = append(errs, typeErr(file, cpuNode.Line, "cpu", "int"))
 		}
 	}
 
