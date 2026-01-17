@@ -152,10 +152,13 @@ func validatePodSpec(file string, spec *yaml.Node) []ValidationError {
 	var errs []ValidationError
 
 	if osNode, ok := mapGet(spec, "os"); ok {
-		if osNode.Kind != yaml.MappingNode {
-			errs = append(errs, typeErr(file, osNode.Line, "spec.os", "object"))
+		if osNode.Kind != yaml.ScalarNode {
+			errs = append(errs, typeErr(file, osNode.Line, "spec.os", "string"))
 		} else {
-			errs = append(errs, validatePodOS(file, osNode)...)
+			v := strings.TrimSpace(osNode.Value)
+			if v != "linux" && v != "windows" {
+				errs = append(errs, unsupported(file, osNode.Line, "spec.os", osNode.Value))
+			}
 		}
 	}
 
