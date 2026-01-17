@@ -53,15 +53,16 @@ func main() {
 func validatePodYAML(file string, root *yaml.Node) []ValidationError {
 	var errs []ValidationError
 
+	if root == nil || len(root.Content) == 0 {
+		return []ValidationError{{File: file, Line: 0, Msg: "cannot unmarshal file content"}}
+	}
+
 	n := root
-	for n != nil && (n.Kind == yaml.DocumentNode || n.Kind == yaml.StreamNode) {
-		if len(n.Content) == 0 {
-			return []ValidationError{{File: file, Line: 0, Msg: "cannot unmarshal file content"}}
-		}
+	if n.Kind == yaml.DocumentNode && len(n.Content) > 0 {
 		n = n.Content[0]
 	}
 
-	if n == nil || n.Kind != yaml.MappingNode {
+	if n.Kind != yaml.MappingNode {
 		return []ValidationError{{File: file, Line: 0, Msg: "cannot unmarshal file content"}}
 	}
 
@@ -70,45 +71,37 @@ func validatePodYAML(file string, root *yaml.Node) []ValidationError {
 	apiNode, ok := mapGet(m, "apiVersion")
 	if !ok {
 		errs = append(errs, req(file, "apiVersion"))
-	} else {
-		if apiNode.Kind != yaml.ScalarNode {
-			errs = append(errs, typeErr(file, apiNode.Line, "apiVersion", "string"))
-		} else if strings.TrimSpace(apiNode.Value) != "v1" {
-			errs = append(errs, unsupported(file, apiNode.Line, "apiVersion", apiNode.Value))
-		}
+	} else if apiNode.Kind != yaml.ScalarNode {
+		errs = append(errs, typeErr(file, apiNode.Line, "apiVersion", "string"))
+	} else if strings.TrimSpace(apiNode.Value) != "v1" {
+		errs = append(errs, unsupported(file, apiNode.Line, "apiVersion", apiNode.Value))
 	}
 
 	kindNode, ok := mapGet(m, "kind")
 	if !ok {
 		errs = append(errs, req(file, "kind"))
-	} else {
-		if kindNode.Kind != yaml.ScalarNode {
-			errs = append(errs, typeErr(file, kindNode.Line, "kind", "string"))
-		} else if strings.TrimSpace(kindNode.Value) != "Pod" {
-			errs = append(errs, unsupported(file, kindNode.Line, "kind", kindNode.Value))
-		}
+	} else if kindNode.Kind != yaml.ScalarNode {
+		errs = append(errs, typeErr(file, kindNode.Line, "kind", "string"))
+	} else if strings.TrimSpace(kindNode.Value) != "Pod" {
+		errs = append(errs, unsupported(file, kindNode.Line, "kind", kindNode.Value))
 	}
 
 	metaNode, ok := mapGet(m, "metadata")
 	if !ok {
 		errs = append(errs, req(file, "metadata"))
+	} else if metaNode.Kind != yaml.MappingNode {
+		errs = append(errs, typeErr(file, metaNode.Line, "metadata", "object"))
 	} else {
-		if metaNode.Kind != yaml.MappingNode {
-			errs = append(errs, typeErr(file, metaNode.Line, "metadata", "object"))
-		} else {
-			errs = append(errs, validateObjectMeta(file, metaNode)...)
-		}
+		errs = append(errs, validateObjectMeta(file, metaNode)...)
 	}
 
 	specNode, ok := mapGet(m, "spec")
 	if !ok {
 		errs = append(errs, req(file, "spec"))
+	} else if specNode.Kind != yaml.MappingNode {
+		errs = append(errs, typeErr(file, specNode.Line, "spec", "object"))
 	} else {
-		if specNode.Kind != yaml.MappingNode {
-			errs = append(errs, typeErr(file, specNode.Line, "spec", "object"))
-		} else {
-			errs = append(errs, validatePodSpec(file, specNode)...)
-		}
+		errs = append(errs, validatePodSpec(file, specNode)...)
 	}
 
 	return errs
