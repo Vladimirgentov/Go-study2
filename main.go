@@ -289,13 +289,15 @@ func validateContainerPort(file string, p *yaml.Node) []ValidationError {
 		return errs
 	}
 	if cpNode.Tag != "!!int" {
-        errs = append(errs, typeErr(file, cpNode.Line, "containerPort", "int"))
-        return errs
-    }
-	cp, err := strconv.Atoi(strings.TrimSpace(cpNode.Value))
-        errs = append(errs, typeErr(file, cpNode.Line, "containerPort", "int"))
-        return errs
+		errs = append(errs, typeErr(file, cpNode.Line, "containerPort", "int"))
+		return errs
 	}
+	cp, en := strconv.Atoi(strings.TrimSpace(cpNode.Value))
+	if en != nil {
+		errs = append(errs, typeErr(file, cpNode.Line, "containerPort", "int"))
+		return errs
+	}
+
 	if cp <= 0 || cp >= 65536 {
 		errs = append(errs, outOfRange(file, cpNode.Line, "containerPort"))
 	}
